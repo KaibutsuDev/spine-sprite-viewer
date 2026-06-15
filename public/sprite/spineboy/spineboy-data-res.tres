@@ -1,0 +1,15 @@
+[gd_resource type="SpineSkeletonDataResource" format=3 uid="uid://besoikkxrl382"]
+
+[sub_resource type="SpineAnimationMix" id="1"]
+from = "idle"
+to = "run"
+mix = 0.2
+
+[sub_resource type="SpineAnimationMix" id="2"]
+from = "run"
+to = "idle"
+mix = 0.2
+
+[resource]
+default_mix = 0.1
+animation_mixes = [SubResource("1"), SubResource("2")]
