@@ -19,11 +19,37 @@ const RUNTIME_CDNS = {
     js: "https://unpkg.com/@esotericsoftware/spine-player@4.0/dist/iife/spine-player.js",
     css: "https://unpkg.com/@esotericsoftware/spine-player@4.0/dist/spine-player.css",
   },
+  3.8: {
+    js: "/spine-runtimes/3.8/spine-player.js",
+    css: "/spine-runtimes/3.8/spine-player.css",
+  },
   3.6: {
     js: "/spine-webgl.min.js",
     css: null,
   },
 };
+
+/**
+ * Helper to decode base64 Data URLs to Uint8Array
+ */
+function dataURLToBytes(dataURL) {
+  const base64 = dataURL.split(",")[1];
+  const binaryString = atob(base64);
+  const len = binaryString.length;
+  const bytes = new Uint8Array(len);
+  for (let i = 0; i < len; i++) {
+    bytes[i] = binaryString.charCodeAt(i);
+  }
+  return bytes;
+}
+
+/**
+ * Helper to decode base64 Data URLs to string
+ */
+function dataURLToString(dataURL) {
+  const bytes = dataURLToBytes(dataURL);
+  return new TextDecoder().decode(bytes);
+}
 
 /**
  * Dynamically injects Spine Player CSS and JS files from CDN.
@@ -60,12 +86,14 @@ function loadSpineCDN(version) {
     // Flush global namespace
     window.spine = undefined;
 
-    // Load CSS
-    const link = document.createElement("link");
-    link.id = cssId;
-    link.rel = "stylesheet";
-    link.href = config.css;
-    document.head.appendChild(link);
+    // Load CSS (if available)
+    if (config.css) {
+      const link = document.createElement("link");
+      link.id = cssId;
+      link.rel = "stylesheet";
+      link.href = config.css;
+      document.head.appendChild(link);
+    }
 
     // Load JS
     const script = document.createElement("script");
@@ -99,7 +127,7 @@ function loadSpineCDN(version) {
 /**
  * Initialize Spine 3.6 WebGL renderer
  */
-function initSpine36WebGL(
+async function initSpine36WebGL(
   containerId,
   model,
   onModelLoaded,
@@ -136,28 +164,44 @@ function initSpine36WebGL(
       throw new Error("Missing atlas or skeleton data");
     }
 
-    // Parse atlas text
-    const atlasText =
-      atlasData instanceof ArrayBuffer
-        ? new TextDecoder().decode(atlasData)
-        : atlasData;
+    // Parse atlas text (decode base64 if it's a data URL)
+    const atlasText = typeof atlasData === "string" && atlasData.startsWith("data:")
+      ? dataURLToString(atlasData)
+      : (atlasData instanceof ArrayBuffer ? new TextDecoder().decode(atlasData) : atlasData);
 
-    // Parse skeleton file
-    const skeletonText =
-      skeletonFileData instanceof ArrayBuffer
-        ? new TextDecoder().decode(skeletonFileData)
-        : skeletonFileData;
+    // Preload textures as WebGL GLTextures asynchronously
+    const textures = {};
+    const imagePromises = Object.keys(model.files)
+      .filter((filename) => filename.toLowerCase().endsWith(".png"))
+      .map((filename) => {
+        return new Promise((resolve, reject) => {
+          const img = new Image();
+          img.onload = () => {
+            try {
+              const glTexture = new spine.webgl.GLTexture(gl, img);
+              textures[filename] = glTexture;
+              resolve();
+            } catch (err) {
+              reject(err);
+            }
+          };
+          img.onerror = () => reject(new Error(`Failed to load image: ${filename}`));
+          img.src = model.files[filename];
+        });
+      });
 
-    // Create atlas
-    const atlas = new spine.Atlas(atlasText, {
-      load: (imagePath) => {
-        const imageData = model.files[imagePath];
-        if (!imageData) {
-          console.error("Missing image for atlas:", imagePath);
-          return null;
-        }
-        return imageData;
-      },
+    await Promise.all(imagePromises);
+
+    if (!active) return;
+
+    // Create atlas (Spine 3.6 uses TextureAtlas with callback function)
+    const atlas = new spine.TextureAtlas(atlasText, (imagePath) => {
+      const texture = textures[imagePath];
+      if (!texture) {
+        console.error("Missing image for atlas:", imagePath);
+        return null;
+      }
+      return texture;
     });
 
     // Create attachment loader
@@ -165,13 +209,19 @@ function initSpine36WebGL(
 
     // Parse and load skeleton
     let skeletonData = null;
-    try {
+    if (model.isBinary) {
+      const skeletonBytes = typeof skeletonFileData === "string" && skeletonFileData.startsWith("data:")
+        ? dataURLToBytes(skeletonFileData)
+        : new Uint8Array(skeletonFileData);
+      const skeletonLoader = new spine.SkeletonBinary(attachmentLoader);
+      skeletonData = skeletonLoader.readSkeletonData(skeletonBytes);
+    } else {
+      const skeletonText = typeof skeletonFileData === "string" && skeletonFileData.startsWith("data:")
+        ? dataURLToString(skeletonFileData)
+        : (skeletonFileData instanceof ArrayBuffer ? new TextDecoder().decode(skeletonFileData) : skeletonFileData);
       const skeletonJson = JSON.parse(skeletonText);
       const skeletonLoader = new spine.SkeletonJson(attachmentLoader);
       skeletonData = skeletonLoader.readSkeletonData(skeletonJson);
-    } catch (e) {
-      console.error("JSON parse error:", e);
-      throw new Error("Failed to parse skeleton JSON");
     }
 
     if (!skeletonData) {
@@ -200,9 +250,14 @@ function initSpine36WebGL(
     const batcher = new spine.webgl.PolygonBatcher(gl);
     const renderer = new spine.webgl.SkeletonRenderer(gl);
 
+    // Calculate bounds of skeleton for camera positioning
+    skeleton.updateWorldTransform();
+    const boundsOffset = new spine.Vector2();
+    const boundsSize = new spine.Vector2();
+    skeleton.getBounds(boundsOffset, boundsSize, []);
+
     // Setup matrices
     const mvp = new spine.webgl.Matrix4();
-    mvp.ortho2d(0, 0, canvas.width, canvas.height);
 
     let lastFrameTime = Date.now();
     let isRunning = true;
@@ -214,6 +269,27 @@ function initSpine36WebGL(
       const deltaTime = (now - lastFrameTime) / 1000;
       lastFrameTime = now;
 
+      // Handle canvas resizing and viewport updating
+      const w = container.clientWidth || 800;
+      const h = container.clientHeight || 600;
+      if (canvas.width !== w || canvas.height !== h) {
+        canvas.width = w;
+        canvas.height = h;
+        gl.viewport(0, 0, w, h);
+      }
+
+      // Center camera on skeleton bounds
+      const centerX = boundsOffset.x + boundsSize.x / 2;
+      const centerY = boundsOffset.y + boundsSize.y / 2;
+      const scaleX = boundsSize.x / canvas.width;
+      const scaleY = boundsSize.y / canvas.height;
+      let scale = 1.2 * Math.max(scaleX, scaleY);
+      if (scale < 1.0) scale = 1.0;
+
+      const orthoWidth = canvas.width * scale;
+      const orthoHeight = canvas.height * scale;
+      mvp.ortho2d(centerX - orthoWidth / 2, centerY - orthoHeight / 2, orthoWidth, orthoHeight);
+
       // Update animation
       animationState.update(deltaTime);
       animationState.apply(skeleton);
@@ -223,9 +299,16 @@ function initSpine36WebGL(
       gl.clearColor(0, 0, 0, 0);
       gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
+      // Bind WebGL shader and set uniforms
+      shader.bind();
+      shader.setUniformi(spine.webgl.Shader.SAMPLER, 0);
+      shader.setUniform4x4f(spine.webgl.Shader.MVP_MATRIX, mvp.values);
+
       batcher.begin(shader);
       renderer.draw(batcher, skeleton);
       batcher.end();
+
+      shader.unbind();
 
       requestAnimationFrame(render);
     };
@@ -233,7 +316,7 @@ function initSpine36WebGL(
     // Start rendering
     render();
 
-    // Create proxy player object
+    // Create proxy player object compatible with the standard player interface
     const proxyPlayer = {
       skeleton: skeleton,
       animationState: animationState,
@@ -246,6 +329,21 @@ function initSpine36WebGL(
           }
         } catch (e) {
           console.warn("Error during cleanup:", e);
+        }
+      },
+      setAnimation: (animationName, loop) => {
+        try {
+          animationState.setAnimation(0, animationName, loop);
+        } catch (e) {
+          console.error("Failed to play animation on proxy:", e);
+        }
+      },
+      setSkin: (skinName) => {
+        try {
+          skeleton.setSkinByName(skinName);
+          skeleton.setSlotsToSetupPose();
+        } catch (e) {
+          console.error("Failed to set skin on proxy:", e);
         }
       },
       state: {
@@ -286,6 +384,7 @@ export default function SpineViewer({
   bgColor,
   gridActive,
   premultipliedAlpha,
+  isTransitioning,
   onModelLoaded,
   onLoadError,
 }) {
@@ -330,7 +429,7 @@ export default function SpineViewer({
           if (!window.spine) {
             throw new Error("Failed to load Spine 3.6 WebGL runtime");
           }
-          initSpine36WebGL(
+          await initSpine36WebGL(
             containerId,
             model,
             onModelLoaded,
@@ -557,7 +656,16 @@ export default function SpineViewer({
           </div>
         )}
 
-        {!model && (
+        {isTransitioning && (
+          <div className="loading-overlay" style={{ zIndex: 10 }}>
+            <div className="spinner" />
+            <div style={{ fontSize: "14px", fontWeight: "500", marginTop: "12px", color: "var(--accent-cyan)" }}>
+              Cargando recursos del modelo...
+            </div>
+          </div>
+        )}
+
+        {!model && !isTransitioning && (
           <div className="empty-state">
             <div
               className="logo-glow"

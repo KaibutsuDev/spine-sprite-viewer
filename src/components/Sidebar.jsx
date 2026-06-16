@@ -3,6 +3,8 @@ import { saveModel } from "../db";
 
 export default function Sidebar({
   recentModels,
+  presetModels = [],
+  loadingPreset = false,
   activeModelId,
   loadedAnimations,
   loadedSkins,
@@ -15,6 +17,7 @@ export default function Sidebar({
   bgUrl,
   bgColor,
   onSelectModel,
+  onSelectPreset,
   onDeleteModel,
   onUploadSuccess,
   onChangeVersion,
@@ -661,6 +664,46 @@ export default function Sidebar({
                 onChange={handleBgImageUpload}
               />
             </div>
+          </div>
+        </div>
+
+        {/* Preset/Test Models List */}
+        <div>
+          <div className="section-title" style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+            <span>Modelos de Prueba</span>
+            {loadingPreset && (
+              <div className="spinner" style={{ width: "14px", height: "14px", border: "2px solid rgba(255,255,255,0.1)", borderTopColor: "var(--accent-cyan)" }} />
+            )}
+          </div>
+
+          <div className="recent-list" style={{ marginBottom: "16px" }}>
+            {presetModels.map((preset) => {
+              const isActive = preset.id === activeModelId;
+              return (
+                <div
+                  key={preset.id}
+                  className={`recent-item ${isActive ? "active" : ""}`}
+                  onClick={() => !loadingPreset && onSelectPreset(preset)}
+                  style={{ 
+                    cursor: loadingPreset ? "not-allowed" : "pointer", 
+                    opacity: loadingPreset && !isActive ? 0.5 : 1,
+                    pointerEvents: loadingPreset ? "none" : "auto"
+                  }}
+                >
+                  <div style={{ flexGrow: 1, minWidth: 0 }}>
+                    <div className="recent-name" title={preset.name}>
+                      {preset.name}
+                    </div>
+                    <div className="recent-date">
+                      Carpeta: public/sprite/{preset.folder} •{" "}
+                      <span style={{ color: "var(--accent-cyan)" }}>
+                        Spine {preset.version}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </div>
 

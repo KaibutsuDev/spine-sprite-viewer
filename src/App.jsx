@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import Sidebar from './components/Sidebar';
 import SpineViewer from './components/SpineViewer';
 import { getModels, deleteModel } from './db';
@@ -8,6 +8,8 @@ export default function App() {
   const [recentModels, setRecentModels] = useState([]);
   const [activeModelId, setActiveModelId] = useState('');
   const [activeModel, setActiveModel] = useState(null);
+  const [loadingPreset, setLoadingPreset] = useState(false);
+  const [isTransitioning, setIsTransitioning] = useState(false);
 
   // Viewer options
   const [spineVersion, setSpineVersion] = useState('4.2');
@@ -24,7 +26,40 @@ export default function App() {
   const [loadedSkins, setLoadedSkins] = useState([]);
   const [activeAnimation, setActiveAnimation] = useState('');
   const [activeSkin, setActiveSkin] = useState('');
-  const [playerInstance, setPlayerInstance] = useState(null);
+  const playerRef = useRef(null);
+
+  const PRESET_MODELS = [
+    {
+      id: 'preset-spineboy',
+      name: 'Spineboy Pro (Spine 4.3)',
+      version: '4.3',
+      isBinary: true,
+      folder: 'spineboy',
+      atlasFileName: 'spineboy.atlas',
+      skeletonFileName: 'spineboy-pro.skel',
+      pngFiles: ['spineboy.png'],
+    },
+    {
+      id: 'preset-100111',
+      name: 'Model 100111 (Spine 3.6)',
+      version: '3.6',
+      isBinary: true,
+      folder: '100111',
+      atlasFileName: '100111.atlas',
+      skeletonFileName: '100111.skel',
+      pngFiles: ['100111.png'],
+    },
+    {
+      id: 'preset-hero-princess',
+      name: 'Hero Princess Knight (Spine 3.6)',
+      version: '3.6',
+      isBinary: true,
+      folder: 'hero_princess_knight',
+      atlasFileName: 'hero_princess_knight.atlas.txt',
+      skeletonFileName: 'hero_princess_knight.skel.txt',
+      pngFiles: ['hero_princess_knight.png'],
+    }
+  ];
 
   // Load recent models from IndexedDB on component mount
   useEffect(() => {
@@ -45,17 +80,92 @@ export default function App() {
     }
   };
 
+  const fetchAsDataURL = async (url) => {
+    const response = await fetch(url);
+    if (!response.ok) {
+      throw new Error(`Error al cargar el archivo del servidor: ${url}`);
+    }
+    const blob = await response.blob();
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result);
+      reader.onerror = () => reject(reader.error);
+      reader.readAsDataURL(blob);
+    });
+  };
+
+  const handleSelectPreset = async (preset) => {
+    setLoadingPreset(true);
+    if (activeModel) {
+      setIsTransitioning(true);
+    }
+    try {
+      const filesMap = {};
+      const basePath = `/sprite/${preset.folder}/`;
+
+      // Fetch atlas
+      filesMap[preset.atlasFileName] = await fetchAsDataURL(`${basePath}${preset.atlasFileName}`);
+
+      // Fetch skeleton
+      filesMap[preset.skeletonFileName] = await fetchAsDataURL(`${basePath}${preset.skeletonFileName}`);
+
+      // Fetch images
+      for (const png of preset.pngFiles) {
+        filesMap[png] = await fetchAsDataURL(`${basePath}${png}`);
+      }
+
+      const presetModel = {
+        id: preset.id,
+        name: preset.name,
+        files: filesMap,
+        atlasFileName: preset.atlasFileName,
+        skeletonFileName: preset.skeletonFileName,
+        isBinary: preset.isBinary,
+        version: preset.version,
+        timestamp: Date.now(),
+        isPreset: true
+      };
+
+      handleSelectModel(presetModel);
+    } catch (err) {
+      console.error("Failed to load preset:", err);
+      alert(`No se pudo cargar el modelo de prueba: ${err.message}`);
+    } finally {
+      setLoadingPreset(false);
+    }
+  };
+
   const handleSelectModel = (model) => {
-    setActiveModelId(model.id);
-    setActiveModel(model);
-    setSpineVersion(model.version || '4.2');
-    
-    // Clear previously loaded animations and skins
-    setLoadedAnimations([]);
-    setLoadedSkins([]);
-    setActiveAnimation('');
-    setActiveSkin('');
-    setPlayerInstance(null);
+    if (activeModel) {
+      setIsTransitioning(true);
+      // Clear everything first to force SpineViewer unmount/cleanup
+      setActiveModelId('');
+      setActiveModel(null);
+      setLoadedAnimations([]);
+      setLoadedSkins([]);
+      setActiveAnimation('');
+      setActiveSkin('');
+      playerRef.current = null;
+
+      // Load the new model on the next tick
+      setTimeout(() => {
+        setActiveModelId(model.id);
+        setActiveModel(model);
+        setSpineVersion(model.version || '4.2');
+      }, 100);
+    } else {
+      setIsTransitioning(true);
+      setActiveModelId(model.id);
+      setActiveModel(model);
+      setSpineVersion(model.version || '4.2');
+      
+      // Clear previously loaded animations and skins
+      setLoadedAnimations([]);
+      setLoadedSkins([]);
+      setActiveAnimation('');
+      setActiveSkin('');
+      playerRef.current = null;
+    }
   };
 
   const handleDeleteModel = async (id) => {
@@ -77,7 +187,7 @@ export default function App() {
           setLoadedSkins([]);
           setActiveAnimation('');
           setActiveSkin('');
-          setPlayerInstance(null);
+          playerRef.current = null;
         }
       }
     } catch (err) {
@@ -94,9 +204,10 @@ export default function App() {
 
   // Called when the Spine player successfully loads the skeleton
   const handleModelLoaded = ({ player, animations, skins }) => {
-    setPlayerInstance(player);
+    playerRef.current = player;
     setLoadedAnimations(animations);
     setLoadedSkins(skins);
+    setIsTransitioning(false);
 
     // Auto-select first skin
     if (skins && skins.length > 0) {
@@ -130,9 +241,9 @@ export default function App() {
   };
 
   const handlePlayAnimation = (animName, loop = true) => {
-    if (playerInstance) {
+    if (playerRef.current) {
       try {
-        playerInstance.setAnimation(animName, loop);
+        playerRef.current.setAnimation(animName, loop);
         setActiveAnimation(animName);
       } catch (e) {
         console.error("Failed to play animation:", e);
@@ -141,9 +252,9 @@ export default function App() {
   };
 
   const handleSkinChange = (skinName) => {
-    if (playerInstance) {
+    if (playerRef.current) {
       try {
-        playerInstance.setSkin(skinName);
+        playerRef.current.setSkin(skinName);
         setActiveSkin(skinName);
       } catch (e) {
         console.error("Failed to change skin:", e);
@@ -156,6 +267,8 @@ export default function App() {
       {/* Sidebar controls and uploads */}
       <Sidebar
         recentModels={recentModels}
+        presetModels={PRESET_MODELS}
+        loadingPreset={loadingPreset}
         activeModelId={activeModelId}
         loadedAnimations={loadedAnimations}
         loadedSkins={loadedSkins}
@@ -168,6 +281,7 @@ export default function App() {
         bgUrl={bgUrl}
         bgColor={bgColor}
         onSelectModel={handleSelectModel}
+        onSelectPreset={handleSelectPreset}
         onDeleteModel={handleDeleteModel}
         onUploadSuccess={handleUploadSuccess}
         onChangeVersion={setSpineVersion}
@@ -178,7 +292,6 @@ export default function App() {
         onChangeBgColor={setBgColor}
         onPlayAnimation={handlePlayAnimation}
         onChangeSkin={handleSkinChange}
-        playerInstance={playerInstance}
       />
 
       {/* Main Spine visualization canvas area */}
@@ -190,12 +303,14 @@ export default function App() {
         bgColor={bgColor}
         gridActive={gridActive}
         premultipliedAlpha={premultipliedAlpha}
+        isTransitioning={isTransitioning}
         onModelLoaded={handleModelLoaded}
         onLoadError={(err) => {
           // Clear active controls if display errors
           setLoadedAnimations([]);
           setLoadedSkins([]);
-          setPlayerInstance(null);
+          playerRef.current = null;
+          setIsTransitioning(false);
         }}
       />
     </div>
