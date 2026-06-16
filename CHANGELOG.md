@@ -4,6 +4,18 @@ Este documento registra las mejoras, adaptaciones y correcciones críticas aplic
 
 ---
 
+## [1.2.0] - 2026-06-15
+
+### 🚀 Nuevas Características
+- **Barra de Control Docked (Bottom Control Bar)**: Se rediseñó la experiencia de usuario trasladando los controles dinámicos del sprite (lista de acciones, loop, botón cargar, selector de skin y velocidad de reproducción) a una barra inferior acoplada, manteniendo la barra lateral limpia exclusivamente para la carga de modelos, presets y configuraciones de fondo.
+- **Control de Velocidad de Reproducción**: Se agregó un control deslizante de `0.1x` a `3.0x` para acelerar o ralentizar la animación en tiempo real.
+- **Refactorización Arquitectónica Modular**: Se introdujo el patrón *Adapter* para los cargadores de Spine (`Spine36Adapter`, `SpinePlayerAdapter`, `SpineAdapterFactory` y `SpineCDNLoader`), aislando la inicialización WebGL nativa de la lógica de React.
+
+### 🧹 Limpieza de Workspace
+- Se eliminaron todos los archivos obsoletos, duplicados y scripts de desarrollo no utilizados (`src/App.css`, `src/assets/react.svg`, `src/assets/vite.svg`, `src/assets/hero.png`, `public/icons.svg`, `scratch_check.js`, `read_skel_version.js`, `temp-main.min.js`, etc.) para optimizar el peso del repositorio.
+
+---
+
 ## [1.1.0] - 2026-06-15
 
 ### 🚀 Nuevas Características

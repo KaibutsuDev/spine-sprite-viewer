@@ -1,5 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { createSpineAdapter } from "../utils/spine/SpineAdapterFactory";
+import { getTranslation } from "../utils/i18n";
+import ControlBar from "./ControlBar";
 
 export default function SpineViewer({
   model,
@@ -12,11 +14,23 @@ export default function SpineViewer({
   isTransitioning,
   onModelLoaded,
   onLoadError,
+  loadedAnimations,
+  loadedSkins,
+  activeSkin,
+  playbackSpeed,
+  activeTracks,
+  language = "es",
+  onPlayAnimation,
+  onChangeSkin,
+  onChangePlaybackSpeed,
+  onClearTrack,
 }) {
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
   const adapterRef = useRef(null);
   const containerId = "spine-player-container-mount";
+  
+  const t = (key, params) => getTranslation(language, key, params);
 
   useEffect(() => {
     let active = true;
@@ -155,7 +169,7 @@ export default function SpineViewer({
           <div className="loading-overlay">
             <div className="spinner" />
             <div style={{ fontSize: "14px", fontWeight: "500" }}>
-              Cargando modelo Spine ({version})...
+              {t("loadingSpine", { version })}
             </div>
           </div>
         )}
@@ -180,7 +194,7 @@ export default function SpineViewer({
                   fontSize: "16px",
                 }}
               >
-                Error de Visualización
+                {t("displayError")}
               </div>
               <div
                 style={{
@@ -194,8 +208,7 @@ export default function SpineViewer({
                 {errorMsg}
               </div>
               <div style={{ color: "#94a3b8", fontSize: "11px" }}>
-                Tip: Intenta cambiar la versión de Spine en el panel lateral si
-                el archivo fue exportado en una versión diferente.
+                {t("displayErrorTip")}
               </div>
             </div>
           </div>
@@ -205,7 +218,7 @@ export default function SpineViewer({
           <div className="loading-overlay" style={{ zIndex: 10 }}>
             <div className="spinner" />
             <div style={{ fontSize: "14px", fontWeight: "500", marginTop: "12px", color: "var(--accent-cyan)" }}>
-              Cargando recursos del modelo...
+              {t("loadingAssets")}
             </div>
           </div>
         )}
@@ -225,13 +238,24 @@ export default function SpineViewer({
             </div>
             <h2 className="empty-state-title">AetherSpine Viewer</h2>
             <p className="empty-state-text">
-              Sube una carpeta o selecciona archivos que contengan un atlas
-              (`.atlas.txt`), un esqueleto (`.json` o `.skel.txt`), y texturas
-              (`.png`) para visualizar tu modelo 2D.
+              {t("emptyStateText")}
             </p>
           </div>
         )}
       </div>
+
+      {model && !isTransitioning && !loading && !errorMsg && (
+        <ControlBar
+          loadedAnimations={loadedAnimations}
+          loadedSkins={loadedSkins}
+          activeSkin={activeSkin}
+          onChangeSkin={onChangeSkin}
+          playbackSpeed={playbackSpeed}
+          onChangePlaybackSpeed={onChangePlaybackSpeed}
+          onPlayAnimation={onPlayAnimation}
+          language={language}
+        />
+      )}
     </div>
   );
 }

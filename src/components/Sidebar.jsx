@@ -1,5 +1,6 @@
 import React, { useRef, useState, useEffect } from "react";
 import { saveModel } from "../db";
+import { getTranslation } from "../utils/i18n";
 
 export default function Sidebar({
   recentModels,
@@ -8,16 +9,14 @@ export default function Sidebar({
   activeModelId,
   loadedAnimations,
   loadedSkins,
-  activeAnimation,
-  activeSkin,
   spineVersion,
   premultipliedAlpha,
   gridActive,
   bgStyle,
   bgUrl,
   bgColor,
-  playbackSpeed = 1.0,
-  activeTracks = {},
+  language = "es",
+  onChangeLanguage,
   onSelectModel,
   onSelectPreset,
   onDeleteModel,
@@ -28,10 +27,6 @@ export default function Sidebar({
   onChangeBgStyle,
   onChangeBgUrl,
   onChangeBgColor,
-  onPlayAnimation,
-  onChangeSkin,
-  onChangePlaybackSpeed,
-  onClearTrack,
 }) {
   const [dragActive, setDragActive] = useState(false);
   const [uploadError, setUploadError] = useState("");
@@ -39,20 +34,8 @@ export default function Sidebar({
   const fileInputRef = useRef(null);
   const folderInputRef = useRef(null);
   const bgFileInputRef = useRef(null);
-  const [loopAnimation, setLoopAnimation] = useState(true);
-  const [selectedTrack, setSelectedTrack] = useState(0);
-  const [selectedAnimation, setSelectedAnimation] = useState("");
 
-  // Update selectedAnimation when loadedAnimations changes
-  useEffect(() => {
-    if (loadedAnimations && loadedAnimations.length > 0) {
-      if (!loadedAnimations.includes(selectedAnimation)) {
-        setSelectedAnimation(loadedAnimations[0]);
-      }
-    } else {
-      setSelectedAnimation("");
-    }
-  }, [loadedAnimations]);
+  const t = (key, params) => getTranslation(language, key, params);
 
   // Drag handlers
   const handleDrag = (e) => {
@@ -77,7 +60,6 @@ export default function Sidebar({
       const file = filesList[i];
       const name = file.name.toLowerCase();
 
-      // Match file extensions
       if (name.endsWith(".atlas") || name.endsWith(".atlas.txt")) {
         atlasFile = file;
       } else if (
@@ -93,24 +75,25 @@ export default function Sidebar({
     }
 
     if (!atlasFile) {
-      setUploadError("Falta el archivo Atlas (.atlas o .atlas.txt)");
+      setUploadError(language === "es" ? "Falta el archivo Atlas (.atlas o .atlas.txt)" : "Missing Atlas file (.atlas or .atlas.txt)");
       setLoadingUpload(false);
       return;
     }
     if (!skeletonFile) {
       setUploadError(
-        "Falta el archivo de Esqueleto (.json, .skel o .skel.txt)",
+        language === "es"
+          ? "Falta el archivo de Esqueleto (.json, .skel o .skel.txt)"
+          : "Missing Skeleton file (.json, .skel or .skel.txt)"
       );
       setLoadingUpload(false);
       return;
     }
     if (pngFiles.length === 0) {
-      setUploadError("Falta el archivo de Imagen (.png)");
+      setUploadError(language === "es" ? "Falta el archivo de Imagen (.png)" : "Missing Image file (.png)");
       setLoadingUpload(false);
       return;
     }
 
-    // Convert file to Base64 Data URL
     const fileToDataURL = (file) => {
       return new Promise((resolve, reject) => {
         const reader = new FileReader();
@@ -122,14 +105,8 @@ export default function Sidebar({
 
     try {
       const filesMap = {};
-
-      // Load atlas as Data URL
       filesMap[atlasFile.name] = await fileToDataURL(atlasFile);
-
-      // Load skeleton as Data URL
       filesMap[skeletonFile.name] = await fileToDataURL(skeletonFile);
-
-      // Load all image textures as Data URLs
       for (const png of pngFiles) {
         filesMap[png.name] = await fileToDataURL(png);
       }
@@ -142,8 +119,7 @@ export default function Sidebar({
         "",
       );
 
-      // Attempt to read version from JSON if text
-      let detectedVersion = "4.2"; // default baseline
+      let detectedVersion = "4.2";
       if (!isBinary) {
         try {
           const text = await new Promise((resolve, reject) => {
@@ -177,12 +153,11 @@ export default function Sidebar({
         timestamp: Date.now(),
       };
 
-      // Save to IndexedDB
       await saveModel(newModel);
       onUploadSuccess(newModel);
     } catch (err) {
       console.error(err);
-      setUploadError("Error procesando los archivos: " + err.message);
+      setUploadError((language === "es" ? "Error procesando los archivos: " : "Error processing files: ") + err.message);
     } finally {
       setLoadingUpload(false);
     }
@@ -215,7 +190,7 @@ export default function Sidebar({
     }
   };
 
-  const activeModel = recentModels.find((m) => m.id === activeModelId);
+  const activeModel = recentModels.find((m) => m.id === activeModelId) || presetModels.find((m) => m.id === activeModelId);
 
   return (
     <div className="sidebar">
@@ -223,7 +198,43 @@ export default function Sidebar({
         <div className="logo-glow">S</div>
         <div>
           <h1 className="logo-title">AetherSpine</h1>
-          <span className="version-badge">2D Viewer</span>
+          <span className="version-badge">{t("logoSubtitle")}</span>
+        </div>
+
+        {/* Language Toggle Button */}
+        <div style={{ marginLeft: "auto", display: "flex", gap: "2px", background: "rgba(255,255,255,0.04)", padding: "3px", borderRadius: "8px", border: "1px solid var(--border-color)" }}>
+          <button
+            onClick={() => onChangeLanguage("es")}
+            style={{
+              background: language === "es" ? "var(--accent)" : "transparent",
+              color: language === "es" ? "white" : "var(--text-secondary)",
+              border: "none",
+              borderRadius: "5px",
+              padding: "4px 8px",
+              fontSize: "10px",
+              fontWeight: "700",
+              cursor: "pointer",
+              transition: "all 0.2s"
+            }}
+          >
+            ES
+          </button>
+          <button
+            onClick={() => onChangeLanguage("en")}
+            style={{
+              background: language === "en" ? "var(--accent)" : "transparent",
+              color: language === "en" ? "white" : "var(--text-secondary)",
+              border: "none",
+              borderRadius: "5px",
+              padding: "4px 8px",
+              fontSize: "10px",
+              fontWeight: "700",
+              cursor: "pointer",
+              transition: "all 0.2s"
+            }}
+          >
+            EN
+          </button>
         </div>
       </div>
 
@@ -231,7 +242,7 @@ export default function Sidebar({
         {/* Upload Block */}
         <div>
           <div className="section-title">
-            <span>Cargar Assets</span>
+            <span>{t("loadAssets")}</span>
           </div>
 
           <div
@@ -252,11 +263,8 @@ export default function Sidebar({
                 <path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM14 13v4h-4v-4H7l5-5 5 5h-3z" />
               </svg>
             </div>
-            <div className="dropzone-text">Arrastra aquí tus archivos</div>
-            <div className="dropzone-subtext">
-              Sube en conjunto tus archivos (.png, .atlas.txt, y .skel.txt /
-              .json) o haz clic para buscar.
-            </div>
+            <div className="dropzone-text">{t("dragDropText")}</div>
+            <div className="dropzone-subtext">{t("dragDropSubtext")}</div>
 
             {loadingUpload && (
               <div className="loading-overlay" style={{ borderRadius: "12px" }}>
@@ -264,7 +272,7 @@ export default function Sidebar({
                   className="spinner"
                   style={{ width: "24px", height: "24px" }}
                 />
-                <span style={{ fontSize: "11px" }}>Procesando archivos...</span>
+                <span style={{ fontSize: "11px" }}>{t("processingFiles")}</span>
               </div>
             )}
           </div>
@@ -276,7 +284,7 @@ export default function Sidebar({
               style={{ flex: 1, fontSize: "12px", padding: "6px" }}
               onClick={() => fileInputRef.current?.click()}
             >
-              Seleccionar Archivos
+              {t("selectFiles")}
             </button>
             <button
               className="action-btn"
@@ -288,7 +296,7 @@ export default function Sidebar({
               }}
               onClick={() => folderInputRef.current?.click()}
             >
-              Subir Carpeta
+              {t("uploadFolder")}
             </button>
           </div>
 
@@ -330,10 +338,10 @@ export default function Sidebar({
         {/* Model Configurations */}
         {activeModel && (
           <div>
-            <div className="section-title">Configuración del Sprite</div>
+            <div className="section-title">{t("spriteSettings")}</div>
             <div className="card controls-grid">
               <div>
-                <span className="control-label">Modelo Activo:</span>
+                <span className="control-label">{t("activeModel")}</span>
                 <div
                   style={{
                     fontSize: "14px",
@@ -364,9 +372,7 @@ export default function Sidebar({
               />
 
               <div>
-                <label className="control-label">
-                  Versión de Spine Runtime:
-                </label>
+                <label className="control-label">{t("spineVersion")}</label>
                 <select
                   className="select-control"
                   value={spineVersion}
@@ -385,8 +391,7 @@ export default function Sidebar({
                     marginTop: "4px",
                   }}
                 >
-                  Nota: El visor se reiniciará para cargar el reproductor
-                  correspondiente de CDN.
+                  {t("spineVersionNote")}
                 </div>
               </div>
 
@@ -424,255 +429,8 @@ export default function Sidebar({
                     checked={gridActive}
                     onChange={(e) => onChangeGrid(e.target.checked)}
                   />
-                  <span>Mostrar Cuadrícula de Guía</span>
+                  <span>{t("showGrid")}</span>
                 </label>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Skin Selector */}
-        {activeModel && loadedSkins.length > 1 && (
-          <div>
-            <div className="section-title">Skin / Aspecto</div>
-            <div className="card">
-              <select
-                className="select-control"
-                value={activeSkin || ""}
-                onChange={(e) => onChangeSkin(e.target.value)}
-              >
-                {loadedSkins.map((skinName) => (
-                  <option key={skinName} value={skinName}>
-                    {skinName}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-        )}
-
-        {/* Playback Speed Control */}
-        {activeModel && (
-          <div>
-            <div className="section-title">Relación de Reproducción (Velocidad)</div>
-            <div className="card" style={{ padding: "12px" }}>
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "8px" }}>
-                <span style={{ fontSize: "12px", color: "var(--text-secondary)" }}>Velocidad:</span>
-                <span style={{ fontSize: "13px", fontWeight: "600", color: "var(--accent-cyan)" }}>
-                  {playbackSpeed.toFixed(1)}x
-                </span>
-              </div>
-              <input
-                type="range"
-                min="0.1"
-                max="3.0"
-                step="0.1"
-                value={playbackSpeed}
-                onChange={(e) => onChangePlaybackSpeed(parseFloat(e.target.value))}
-                style={{
-                  width: "100%",
-                  accentColor: "var(--accent)",
-                  cursor: "pointer",
-                  background: "rgba(255,255,255,0.1)",
-                  height: "6px",
-                  borderRadius: "3px"
-                }}
-              />
-              <div style={{ display: "flex", justifyContent: "space-between", fontSize: "10px", color: "var(--text-muted)", marginTop: "4px" }}>
-                <span>0.1x</span>
-                <span>1.0x (Normal)</span>
-                <span>3.0x</span>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Multi-track Mapping / Action Loader */}
-        {activeModel && loadedAnimations.length > 0 && (
-          <div>
-            <div className="section-title">Nodo de Visualización (Mapeo de Pistas)</div>
-            <div className="card controls-grid" style={{ padding: "12px" }}>
-              <div>
-                <label className="control-label">Pista de Destino (Nodo):</label>
-                <select
-                  className="select-control"
-                  value={selectedTrack}
-                  onChange={(e) => setSelectedTrack(parseInt(e.target.value))}
-                >
-                  <option value="0">Pista 0 (Base / Cuerpo)</option>
-                  <option value="1">Pista 1 (Brazos / Acción)</option>
-                  <option value="2">Pista 2 (Expresión / Cabeza)</option>
-                  <option value="3">Pista 3 (Efectos / Extra)</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="control-label">Acción a Cargar:</label>
-                <select
-                  className="select-control"
-                  value={selectedAnimation}
-                  onChange={(e) => setSelectedAnimation(e.target.value)}
-                >
-                  {loadedAnimations.map((anim) => (
-                    <option key={anim} value={anim}>
-                      {anim}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                <label style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "12px", cursor: "pointer" }}>
-                  <input
-                    type="checkbox"
-                    checked={loopAnimation}
-                    onChange={(e) => setLoopAnimation(e.target.checked)}
-                  />
-                  <span>Bucle (Loop)</span>
-                </label>
-
-                <button
-                  className="action-btn"
-                  style={{
-                    padding: "6px 16px",
-                    background: "var(--accent)",
-                    color: "white",
-                    fontWeight: "600",
-                    fontSize: "12px"
-                  }}
-                  onClick={() => onPlayAnimation(selectedAnimation, loopAnimation, selectedTrack)}
-                >
-                  Cargar Acción
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Active Actions List (Scrollable) */}
-        {activeModel && Object.keys(activeTracks).length > 0 && (
-          <div>
-            <div className="section-title">Acciones en Reproducción</div>
-            <div className="card" style={{ padding: "8px", maxHeight: "150px", overflowY: "auto" }}>
-              <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-                {Object.entries(activeTracks).map(([trackId, animName]) => {
-                  if (!animName) return null;
-                  return (
-                    <div
-                      key={trackId}
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "space-between",
-                        padding: "6px 10px",
-                        background: "rgba(255,255,255,0.03)",
-                        border: "1px solid var(--border-color)",
-                        borderRadius: "6px"
-                      }}
-                    >
-                      <div style={{ minWidth: 0 }}>
-                        <span style={{ fontSize: "11px", fontWeight: "600", color: "var(--accent-cyan)", marginRight: "8px" }}>
-                          Pista {trackId}:
-                        </span>
-                        <span style={{ fontSize: "12px", color: "white", wordBreak: "break-all" }}>
-                          {animName}
-                        </span>
-                      </div>
-                      <button
-                        onClick={() => onClearTrack(parseInt(trackId))}
-                        style={{
-                          background: "rgba(239, 68, 68, 0.15)",
-                          border: "none",
-                          color: "#f87171",
-                          padding: "2px 8px",
-                          borderRadius: "4px",
-                          fontSize: "10px",
-                          cursor: "pointer",
-                          fontWeight: "600"
-                        }}
-                      >
-                        Detener
-                      </button>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Animations List (Full actions index) */}
-        {activeModel && loadedAnimations.length > 0 && (
-          <div>
-            <div className="section-title">
-              <span>Índice Completo de Acciones ({loadedAnimations.length})</span>
-            </div>
-
-            <div
-              className="card"
-              style={{ padding: "8px", maxHeight: "200px", overflowY: "auto" }}
-            >
-              <div
-                style={{ display: "flex", flexDirection: "column", gap: "4px" }}
-              >
-                {loadedAnimations.map((animName) => {
-                  const isActive = activeAnimation === animName;
-                  return (
-                    <button
-                      key={animName}
-                      className={`preset-btn ${isActive ? "active" : ""}`}
-                      style={{
-                        height: "auto",
-                        padding: "8px 12px",
-                        textAlign: "left",
-                        display: "flex",
-                        alignItems: "center",
-                        gap: "8px",
-                        background: isActive
-                          ? "rgba(99, 102, 241, 0.12)"
-                          : "rgba(0,0,0,0.15)",
-                        border: isActive
-                          ? "1px solid var(--accent)"
-                          : "1px solid var(--border-color)",
-                        color: isActive ? "white" : "var(--text-secondary)",
-                      }}
-                      onClick={() => onPlayAnimation(animName, loopAnimation, 0)}
-                    >
-                      <span style={{ display: "flex", alignItems: "center" }}>
-                        {isActive ? (
-                          <svg
-                            width="12"
-                            height="12"
-                            fill="var(--accent-cyan)"
-                            viewBox="0 0 24 24"
-                          >
-                            <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 14.5v-9l6 4.5-6 4.5z" />
-                          </svg>
-                        ) : (
-                          <svg
-                            width="12"
-                            height="12"
-                            fill="currentColor"
-                            viewBox="0 0 24 24"
-                          >
-                            <path d="M8 5v14l11-7z" />
-                          </svg>
-                        )}
-                      </span>
-                      <span
-                        style={{
-                          fontSize: "13px",
-                          fontWeight: isActive ? "600" : "400",
-                          whiteSpace: "nowrap",
-                          overflow: "hidden",
-                          textOverflow: "ellipsis",
-                        }}
-                      >
-                        {animName}
-                      </span>
-                    </button>
-                  );
-                })}
               </div>
             </div>
           </div>
@@ -680,7 +438,7 @@ export default function Sidebar({
 
         {/* Background Selector */}
         <div>
-          <div className="section-title">Fondo de Pantalla</div>
+          <div className="section-title">{t("canvasBackground")}</div>
           <div className="card controls-grid">
             <div className="bg-presets">
               <button
@@ -688,62 +446,62 @@ export default function Sidebar({
                 className={`preset-btn preset-checkered ${bgStyle === "checkered" ? "active" : ""}`}
                 onClick={() => onChangeBgStyle("checkered")}
               >
-                <span className="preset-btn-label">Cuadrícula</span>
+                <span className="preset-btn-label">{t("bgCheckered")}</span>
               </button>
               <button
                 title="Blueprint"
                 className={`preset-btn preset-blueprint ${bgStyle === "blueprint" ? "active" : ""}`}
                 onClick={() => onChangeBgStyle("blueprint")}
               >
-                <span className="preset-btn-label">Guía</span>
+                <span className="preset-btn-label">{t("bgBlueprint")}</span>
               </button>
               <button
                 title="Espacio Cósmico"
                 className={`preset-btn preset-space ${bgStyle === "space" ? "active" : ""}`}
                 onClick={() => onChangeBgStyle("space")}
               >
-                <span className="preset-btn-label">Espacio</span>
+                <span className="preset-btn-label">{t("bgSpace")}</span>
               </button>
               <button
                 title="Amanecer Neón"
                 className={`preset-btn preset-neon-dusk ${bgStyle === "neon-dusk" ? "active" : ""}`}
                 onClick={() => onChangeBgStyle("neon-dusk")}
               >
-                <span className="preset-btn-label">Neón</span>
+                <span className="preset-btn-label">{t("bgNeon")}</span>
               </button>
               <button
                 title="Estudio Gris"
                 className={`preset-btn preset-studio ${bgStyle === "studio" ? "active" : ""}`}
                 onClick={() => onChangeBgStyle("studio")}
               >
-                <span className="preset-btn-label">Estudio</span>
+                <span className="preset-btn-label">{t("bgStudio")}</span>
               </button>
               <button
                 title="Gris Pizarra"
                 className={`preset-btn preset-slate-grey ${bgStyle === "slate-grey" ? "active" : ""}`}
                 onClick={() => onChangeBgStyle("slate-grey")}
               >
-                <span className="preset-btn-label">Pizarra</span>
+                <span className="preset-btn-label">{t("bgSlate")}</span>
               </button>
               <button
                 title="Negro Absoluto"
                 className={`preset-btn preset-dark-obsidian ${bgStyle === "dark-obsidian" ? "active" : ""}`}
                 onClick={() => onChangeBgStyle("dark-obsidian")}
               >
-                <span className="preset-btn-label">Oscuro</span>
+                <span className="preset-btn-label">{t("bgDark")}</span>
               </button>
               <button
                 title="Blanco Papel"
                 className={`preset-btn preset-paper-white ${bgStyle === "paper-white" ? "active" : ""}`}
                 onClick={() => onChangeBgStyle("paper-white")}
               >
-                <span className="preset-btn-label">Claro</span>
+                <span className="preset-btn-label">{t("bgLight")}</span>
               </button>
             </div>
 
             <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
               <span className="control-label" style={{ margin: 0 }}>
-                Color Sólido:
+                {t("solidColor")}
               </span>
               <input
                 type="color"
@@ -770,12 +528,12 @@ export default function Sidebar({
             />
 
             <div>
-              <span className="control-label">Cargar Fondo Personalizado:</span>
+              <span className="control-label">{t("customBgUrl")}</span>
 
               <div className="url-input-container">
                 <input
                   type="text"
-                  placeholder="Pegar URL de imagen..."
+                  placeholder={t("pasteUrlPlaceholder")}
                   className="text-input"
                   value={
                     bgStyle === "custom-image" && !bgUrl.startsWith("data:")
@@ -802,7 +560,7 @@ export default function Sidebar({
                 }}
                 onClick={() => bgFileInputRef.current?.click()}
               >
-                Subir Imagen de Fondo Local
+                {t("uploadBgLocal")}
               </button>
 
               <input
@@ -819,7 +577,7 @@ export default function Sidebar({
         {/* Preset/Test Models List */}
         <div>
           <div className="section-title" style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-            <span>Modelos de Prueba</span>
+            <span>{t("presetModels")}</span>
             {loadingPreset && (
               <div className="spinner" style={{ width: "14px", height: "14px", border: "2px solid rgba(255,255,255,0.1)", borderTopColor: "var(--accent-cyan)" }} />
             )}
@@ -833,8 +591,8 @@ export default function Sidebar({
                   key={preset.id}
                   className={`recent-item ${isActive ? "active" : ""}`}
                   onClick={() => !loadingPreset && onSelectPreset(preset)}
-                  style={{ 
-                    cursor: loadingPreset ? "not-allowed" : "pointer", 
+                  style={{
+                    cursor: loadingPreset ? "not-allowed" : "pointer",
                     opacity: loadingPreset && !isActive ? 0.5 : 1,
                     pointerEvents: loadingPreset ? "none" : "auto"
                   }}
@@ -844,7 +602,7 @@ export default function Sidebar({
                       {preset.name}
                     </div>
                     <div className="recent-date">
-                      Carpeta: public/sprite/{preset.folder} •{" "}
+                      {t("folderText")}: public/sprite/{preset.folder} •{" "}
                       <span style={{ color: "var(--accent-cyan)" }}>
                         Spine {preset.version}
                       </span>
@@ -859,7 +617,7 @@ export default function Sidebar({
         {/* Recent Uploads List */}
         <div>
           <div className="section-title">
-            <span>Modelos Recientes</span>
+            <span>{t("recentUploads")}</span>
             <span style={{ fontSize: "10px", color: "var(--text-muted)" }}>
               ({recentModels.length})
             </span>
@@ -877,7 +635,7 @@ export default function Sidebar({
                 border: "1px dashed var(--border-color)",
               }}
             >
-              Aún no has subido modelos.
+              {t("noRecentUploads")}
             </div>
           ) : (
             <div className="recent-list">
@@ -885,7 +643,7 @@ export default function Sidebar({
                 const isActive = model.id === activeModelId;
                 const formattedDate = new Date(
                   model.timestamp,
-                ).toLocaleDateString("es-ES", {
+                ).toLocaleDateString(language === "es" ? "es-ES" : "en-US", {
                   month: "short",
                   day: "numeric",
                   hour: "2-digit",
@@ -917,7 +675,7 @@ export default function Sidebar({
                         e.stopPropagation();
                         onDeleteModel(model.id);
                       }}
-                      title="Eliminar del historial"
+                      title={t("deleteHistory")}
                     >
                       <svg
                         width="14"

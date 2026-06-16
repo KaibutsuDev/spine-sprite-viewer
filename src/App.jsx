@@ -28,7 +28,13 @@ export default function App() {
   const [activeSkin, setActiveSkin] = useState('');
   const [playbackSpeed, setPlaybackSpeed] = useState(1.0);
   const [activeTracks, setActiveTracks] = useState({ 0: '' });
+  const [language, setLanguage] = useState(() => localStorage.getItem('aetherspine_lang') || 'en');
   const playerRef = useRef(null);
+
+  const handleLanguageChange = (lang) => {
+    setLanguage(lang);
+    localStorage.setItem('aetherspine_lang', lang);
+  };
 
   const PRESET_MODELS = [
     {
@@ -325,6 +331,8 @@ export default function App() {
         bgColor={bgColor}
         playbackSpeed={playbackSpeed}
         activeTracks={activeTracks}
+        language={language}
+        onChangeLanguage={handleLanguageChange}
         onSelectModel={handleSelectModel}
         onSelectPreset={handleSelectPreset}
         onDeleteModel={handleDeleteModel}
@@ -359,6 +367,16 @@ export default function App() {
           playerRef.current = null;
           setIsTransitioning(false);
         }}
+        loadedAnimations={loadedAnimations}
+        loadedSkins={loadedSkins}
+        activeSkin={activeSkin}
+        playbackSpeed={playbackSpeed}
+        activeTracks={activeTracks}
+        language={language}
+        onPlayAnimation={handlePlayAnimation}
+        onChangeSkin={handleSkinChange}
+        onChangePlaybackSpeed={handlePlaybackSpeedChange}
+        onClearTrack={handleClearTrack}
       />
     </div>
   );
