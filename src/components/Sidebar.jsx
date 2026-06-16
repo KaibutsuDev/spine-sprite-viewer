@@ -17,6 +17,8 @@ export default function Sidebar({
   bgColor,
   language = "es",
   onChangeLanguage,
+  sidebarOpen = false,
+  onCloseSidebar,
   onSelectModel,
   onSelectPreset,
   onDeleteModel,
@@ -193,7 +195,24 @@ export default function Sidebar({
   const activeModel = recentModels.find((m) => m.id === activeModelId) || presetModels.find((m) => m.id === activeModelId);
 
   return (
-    <div className="sidebar">
+    <>
+      {sidebarOpen && (
+        <div
+          className="sidebar-backdrop"
+          onClick={onCloseSidebar}
+          style={{
+            position: "absolute",
+            top: "56px",
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: "rgba(0,0,0,0.5)",
+            backdropFilter: "blur(2px)",
+            zIndex: 9
+          }}
+        />
+      )}
+      <div className={`sidebar ${sidebarOpen ? "open" : ""}`}>
       <div className="sidebar-header">
         <div className="logo-glow">S</div>
         <div>
@@ -692,7 +711,8 @@ export default function Sidebar({
             </div>
           )}
         </div>
+        </div>
       </div>
-    </div>
+    </>
   );
 }

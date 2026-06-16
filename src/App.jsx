@@ -29,6 +29,7 @@ export default function App() {
   const [playbackSpeed, setPlaybackSpeed] = useState(1.0);
   const [activeTracks, setActiveTracks] = useState({ 0: '' });
   const [language, setLanguage] = useState(() => localStorage.getItem('aetherspine_lang') || 'en');
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const playerRef = useRef(null);
 
   const handleLanguageChange = (lang) => {
@@ -103,6 +104,7 @@ export default function App() {
   };
 
   const handleSelectPreset = async (preset) => {
+    setSidebarOpen(false); // Close sidebar on mobile
     setLoadingPreset(true);
     if (activeModel) {
       setIsTransitioning(true);
@@ -144,6 +146,7 @@ export default function App() {
   };
 
   const handleSelectModel = (model) => {
+    setSidebarOpen(false); // Close sidebar on mobile
     if (activeModel) {
       setIsTransitioning(true);
       // Clear everything first to force SpineViewer unmount/cleanup
@@ -313,7 +316,25 @@ export default function App() {
 
   return (
     <div className="app-container">
-      {/* Sidebar controls and uploads */}
+      {/* Mobile Top Navigation Bar */}
+      <div className="mobile-nav-bar">
+        <div className="logo-glow" style={{ width: '28px', height: '28px', fontSize: '14px' }}>S</div>
+        <span style={{ fontWeight: 600, fontSize: '15px', letterSpacing: '-0.3px' }}>AetherSpine</span>
+        <button
+          className="menu-toggle-btn"
+          onClick={() => setSidebarOpen(!sidebarOpen)}
+          aria-label="Toggle menu"
+        >
+          <svg width="20" height="20" fill="currentColor" viewBox="0 0 24 24">
+            {sidebarOpen ? (
+              <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z" />
+            ) : (
+              <path d="M3 18h18v-2H3v2zm0-5h18v-2H3v2zm0-7v2h18V6H3z" />
+            )}
+          </svg>
+        </button>
+      </div>
+
       <Sidebar
         recentModels={recentModels}
         presetModels={PRESET_MODELS}
@@ -333,6 +354,8 @@ export default function App() {
         activeTracks={activeTracks}
         language={language}
         onChangeLanguage={handleLanguageChange}
+        sidebarOpen={sidebarOpen}
+        onCloseSidebar={() => setSidebarOpen(false)}
         onSelectModel={handleSelectModel}
         onSelectPreset={handleSelectPreset}
         onDeleteModel={handleDeleteModel}
