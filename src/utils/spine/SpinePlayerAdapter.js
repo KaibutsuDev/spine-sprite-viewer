@@ -96,17 +96,31 @@ export class SpinePlayerAdapter {
 
   // --- ISpineAdapter Interface Methods ---
 
-  setAnimation(animName, loop = true) {
+  setAnimation(animName, loop = true, trackIndex = 0) {
     if (this.player) {
       try {
-        // Use the official helper on the player instance
-        if (typeof this.player.setAnimation === "function") {
+        if (trackIndex === 0 && typeof this.player.setAnimation === "function") {
           this.player.setAnimation(animName, loop);
         } else if (this.player.animationState) {
-          this.player.animationState.setAnimation(0, animName, loop);
+          this.player.animationState.setAnimation(trackIndex, animName, loop);
         }
       } catch (e) {
-        console.error("Failed to play animation on SpinePlayer:", e);
+        console.error(`Failed to play animation on track ${trackIndex} on SpinePlayer:`, e);
+      }
+    }
+  }
+
+  clearTrack(trackIndex) {
+    if (this.player) {
+      try {
+        if (this.player.animationState) {
+          this.player.animationState.clearTrack(trackIndex);
+        }
+        if (this.player.skeleton) {
+          this.player.skeleton.setSlotsToSetupPose();
+        }
+      } catch (e) {
+        console.error(`Failed to clear track ${trackIndex} on SpinePlayer:`, e);
       }
     }
   }

@@ -223,11 +223,22 @@ export class Spine36Adapter {
 
   // --- ISpineAdapter Interface Methods ---
 
-  setAnimation(animName, loop = true) {
+  setAnimation(animName, loop = true, trackIndex = 0) {
     try {
-      this.animationState.setAnimation(0, animName, loop);
+      this.animationState.setAnimation(trackIndex, animName, loop);
     } catch (e) {
-      console.error("Failed to play animation:", e);
+      console.error(`Failed to play animation on track ${trackIndex}:`, e);
+    }
+  }
+
+  clearTrack(trackIndex) {
+    try {
+      this.animationState.clearTrack(trackIndex);
+      if (this.skeleton) {
+        this.skeleton.setSlotsToSetupPose();
+      }
+    } catch (e) {
+      console.error(`Failed to clear track ${trackIndex}:`, e);
     }
   }
 

@@ -1,4 +1,4 @@
-import React, { useRef, useState } from "react";
+import React, { useRef, useState, useEffect } from "react";
 import { saveModel } from "../db";
 
 export default function Sidebar({
@@ -16,6 +16,8 @@ export default function Sidebar({
   bgStyle,
   bgUrl,
   bgColor,
+  playbackSpeed = 1.0,
+  activeTracks = {},
   onSelectModel,
   onSelectPreset,
   onDeleteModel,
@@ -28,7 +30,8 @@ export default function Sidebar({
   onChangeBgColor,
   onPlayAnimation,
   onChangeSkin,
-  playerInstance,
+  onChangePlaybackSpeed,
+  onClearTrack,
 }) {
   const [dragActive, setDragActive] = useState(false);
   const [uploadError, setUploadError] = useState("");
@@ -37,6 +40,19 @@ export default function Sidebar({
   const folderInputRef = useRef(null);
   const bgFileInputRef = useRef(null);
   const [loopAnimation, setLoopAnimation] = useState(true);
+  const [selectedTrack, setSelectedTrack] = useState(0);
+  const [selectedAnimation, setSelectedAnimation] = useState("");
+
+  // Update selectedAnimation when loadedAnimations changes
+  useEffect(() => {
+    if (loadedAnimations && loadedAnimations.length > 0) {
+      if (!loadedAnimations.includes(selectedAnimation)) {
+        setSelectedAnimation(loadedAnimations[0]);
+      }
+    } else {
+      setSelectedAnimation("");
+    }
+  }, [loadedAnimations]);
 
   // Drag handlers
   const handleDrag = (e) => {
@@ -435,33 +451,166 @@ export default function Sidebar({
           </div>
         )}
 
-        {/* Animations List */}
+        {/* Playback Speed Control */}
+        {activeModel && (
+          <div>
+            <div className="section-title">Relación de Reproducción (Velocidad)</div>
+            <div className="card" style={{ padding: "12px" }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "8px" }}>
+                <span style={{ fontSize: "12px", color: "var(--text-secondary)" }}>Velocidad:</span>
+                <span style={{ fontSize: "13px", fontWeight: "600", color: "var(--accent-cyan)" }}>
+                  {playbackSpeed.toFixed(1)}x
+                </span>
+              </div>
+              <input
+                type="range"
+                min="0.1"
+                max="3.0"
+                step="0.1"
+                value={playbackSpeed}
+                onChange={(e) => onChangePlaybackSpeed(parseFloat(e.target.value))}
+                style={{
+                  width: "100%",
+                  accentColor: "var(--accent)",
+                  cursor: "pointer",
+                  background: "rgba(255,255,255,0.1)",
+                  height: "6px",
+                  borderRadius: "3px"
+                }}
+              />
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: "10px", color: "var(--text-muted)", marginTop: "4px" }}>
+                <span>0.1x</span>
+                <span>1.0x (Normal)</span>
+                <span>3.0x</span>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Multi-track Mapping / Action Loader */}
+        {activeModel && loadedAnimations.length > 0 && (
+          <div>
+            <div className="section-title">Nodo de Visualización (Mapeo de Pistas)</div>
+            <div className="card controls-grid" style={{ padding: "12px" }}>
+              <div>
+                <label className="control-label">Pista de Destino (Nodo):</label>
+                <select
+                  className="select-control"
+                  value={selectedTrack}
+                  onChange={(e) => setSelectedTrack(parseInt(e.target.value))}
+                >
+                  <option value="0">Pista 0 (Base / Cuerpo)</option>
+                  <option value="1">Pista 1 (Brazos / Acción)</option>
+                  <option value="2">Pista 2 (Expresión / Cabeza)</option>
+                  <option value="3">Pista 3 (Efectos / Extra)</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="control-label">Acción a Cargar:</label>
+                <select
+                  className="select-control"
+                  value={selectedAnimation}
+                  onChange={(e) => setSelectedAnimation(e.target.value)}
+                >
+                  {loadedAnimations.map((anim) => (
+                    <option key={anim} value={anim}>
+                      {anim}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                <label style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "12px", cursor: "pointer" }}>
+                  <input
+                    type="checkbox"
+                    checked={loopAnimation}
+                    onChange={(e) => setLoopAnimation(e.target.checked)}
+                  />
+                  <span>Bucle (Loop)</span>
+                </label>
+
+                <button
+                  className="action-btn"
+                  style={{
+                    padding: "6px 16px",
+                    background: "var(--accent)",
+                    color: "white",
+                    fontWeight: "600",
+                    fontSize: "12px"
+                  }}
+                  onClick={() => onPlayAnimation(selectedAnimation, loopAnimation, selectedTrack)}
+                >
+                  Cargar Acción
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Active Actions List (Scrollable) */}
+        {activeModel && Object.keys(activeTracks).length > 0 && (
+          <div>
+            <div className="section-title">Acciones en Reproducción</div>
+            <div className="card" style={{ padding: "8px", maxHeight: "150px", overflowY: "auto" }}>
+              <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                {Object.entries(activeTracks).map(([trackId, animName]) => {
+                  if (!animName) return null;
+                  return (
+                    <div
+                      key={trackId}
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        padding: "6px 10px",
+                        background: "rgba(255,255,255,0.03)",
+                        border: "1px solid var(--border-color)",
+                        borderRadius: "6px"
+                      }}
+                    >
+                      <div style={{ minWidth: 0 }}>
+                        <span style={{ fontSize: "11px", fontWeight: "600", color: "var(--accent-cyan)", marginRight: "8px" }}>
+                          Pista {trackId}:
+                        </span>
+                        <span style={{ fontSize: "12px", color: "white", wordBreak: "break-all" }}>
+                          {animName}
+                        </span>
+                      </div>
+                      <button
+                        onClick={() => onClearTrack(parseInt(trackId))}
+                        style={{
+                          background: "rgba(239, 68, 68, 0.15)",
+                          border: "none",
+                          color: "#f87171",
+                          padding: "2px 8px",
+                          borderRadius: "4px",
+                          fontSize: "10px",
+                          cursor: "pointer",
+                          fontWeight: "600"
+                        }}
+                      >
+                        Detener
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Animations List (Full actions index) */}
         {activeModel && loadedAnimations.length > 0 && (
           <div>
             <div className="section-title">
-              <span>Animaciones ({loadedAnimations.length})</span>
-              <label
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "4px",
-                  fontSize: "10px",
-                  textTransform: "none",
-                  cursor: "pointer",
-                }}
-              >
-                <input
-                  type="checkbox"
-                  checked={loopAnimation}
-                  onChange={(e) => setLoopAnimation(e.target.checked)}
-                />
-                <span>Loop</span>
-              </label>
+              <span>Índice Completo de Acciones ({loadedAnimations.length})</span>
             </div>
 
             <div
               className="card"
-              style={{ padding: "8px", maxHeight: "250px", overflowY: "auto" }}
+              style={{ padding: "8px", maxHeight: "200px", overflowY: "auto" }}
             >
               <div
                 style={{ display: "flex", flexDirection: "column", gap: "4px" }}
@@ -487,7 +636,7 @@ export default function Sidebar({
                           : "1px solid var(--border-color)",
                         color: isActive ? "white" : "var(--text-secondary)",
                       }}
-                      onClick={() => onPlayAnimation(animName, loopAnimation)}
+                      onClick={() => onPlayAnimation(animName, loopAnimation, 0)}
                     >
                       <span style={{ display: "flex", alignItems: "center" }}>
                         {isActive ? (

@@ -26,6 +26,8 @@ export default function App() {
   const [loadedSkins, setLoadedSkins] = useState([]);
   const [activeAnimation, setActiveAnimation] = useState('');
   const [activeSkin, setActiveSkin] = useState('');
+  const [playbackSpeed, setPlaybackSpeed] = useState(1.0);
+  const [activeTracks, setActiveTracks] = useState({ 0: '' });
   const playerRef = useRef(null);
 
   const PRESET_MODELS = [
@@ -145,6 +147,7 @@ export default function App() {
       setLoadedSkins([]);
       setActiveAnimation('');
       setActiveSkin('');
+      setActiveTracks({ 0: '' });
       playerRef.current = null;
 
       // Load the new model on the next tick
@@ -164,6 +167,7 @@ export default function App() {
       setLoadedSkins([]);
       setActiveAnimation('');
       setActiveSkin('');
+      setActiveTracks({ 0: '' });
       playerRef.current = null;
     }
   };
@@ -187,6 +191,7 @@ export default function App() {
           setLoadedSkins([]);
           setActiveAnimation('');
           setActiveSkin('');
+          setActiveTracks({ 0: '' });
           playerRef.current = null;
         }
       }
@@ -208,6 +213,9 @@ export default function App() {
     setLoadedAnimations(animations);
     setLoadedSkins(skins);
     setIsTransitioning(false);
+
+    // Apply current playback speed
+    player.setPlaybackSpeed(playbackSpeed);
 
     // Auto-select first skin
     if (skins && skins.length > 0) {
@@ -232,21 +240,56 @@ export default function App() {
       ) || animations[0];
 
       setActiveAnimation(defaultAnim);
+      setActiveTracks({ 0: defaultAnim });
       try {
-        player.setAnimation(defaultAnim, true);
+        player.setAnimation(defaultAnim, true, 0);
       } catch (e) {
         console.warn("Could not set initial animation:", e);
+      }
+    } else {
+      setActiveTracks({});
+    }
+  };
+
+  const handlePlayAnimation = (animName, loop = true, trackIndex = 0) => {
+    if (playerRef.current) {
+      try {
+        playerRef.current.setAnimation(animName, loop, trackIndex);
+        setActiveTracks(prev => ({ ...prev, [trackIndex]: animName }));
+        if (trackIndex === 0) {
+          setActiveAnimation(animName);
+        }
+      } catch (e) {
+        console.error(`Failed to play animation on track ${trackIndex}:`, e);
       }
     }
   };
 
-  const handlePlayAnimation = (animName, loop = true) => {
+  const handleClearTrack = (trackIndex) => {
     if (playerRef.current) {
       try {
-        playerRef.current.setAnimation(animName, loop);
-        setActiveAnimation(animName);
+        playerRef.current.clearTrack(trackIndex);
+        setActiveTracks(prev => {
+          const next = { ...prev };
+          delete next[trackIndex];
+          return next;
+        });
+         if (trackIndex === 0) {
+          setActiveAnimation('');
+        }
       } catch (e) {
-        console.error("Failed to play animation:", e);
+        console.error(`Failed to clear track ${trackIndex}:`, e);
+      }
+    }
+  };
+
+  const handlePlaybackSpeedChange = (speed) => {
+    setPlaybackSpeed(speed);
+    if (playerRef.current) {
+      try {
+        playerRef.current.setPlaybackSpeed(speed);
+      } catch (e) {
+        console.error("Failed to change playback speed:", e);
       }
     }
   };
@@ -280,6 +323,8 @@ export default function App() {
         bgStyle={bgStyle}
         bgUrl={bgUrl}
         bgColor={bgColor}
+        playbackSpeed={playbackSpeed}
+        activeTracks={activeTracks}
         onSelectModel={handleSelectModel}
         onSelectPreset={handleSelectPreset}
         onDeleteModel={handleDeleteModel}
@@ -292,6 +337,8 @@ export default function App() {
         onChangeBgColor={setBgColor}
         onPlayAnimation={handlePlayAnimation}
         onChangeSkin={handleSkinChange}
+        onChangePlaybackSpeed={handlePlaybackSpeedChange}
+        onClearTrack={handleClearTrack}
       />
 
       {/* Main Spine visualization canvas area */}
