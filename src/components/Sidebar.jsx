@@ -121,7 +121,7 @@ export default function Sidebar({
         "",
       );
 
-      let detectedVersion = "4.2";
+      let detectedVersion = "3.6";
       if (!isBinary) {
         try {
           const text = await new Promise((resolve, reject) => {
@@ -133,7 +133,8 @@ export default function Sidebar({
           const parsed = JSON.parse(text);
           if (parsed.skeleton?.spine) {
             const versionString = parsed.skeleton.spine;
-            if (versionString.startsWith("3.8")) detectedVersion = "3.8";
+            if (versionString.startsWith("3.6")) detectedVersion = "3.6";
+            else if (versionString.startsWith("3.8")) detectedVersion = "3.8";
             else if (versionString.startsWith("4.0")) detectedVersion = "4.0";
             else if (versionString.startsWith("4.1")) detectedVersion = "4.1";
             else if (versionString.startsWith("4.2")) detectedVersion = "4.2";
@@ -165,12 +166,72 @@ export default function Sidebar({
     }
   };
 
-  const handleDrop = (e) => {
+  const handleDrop = async (e) => {
     e.preventDefault();
     e.stopPropagation();
     setDragActive(false);
 
-    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+    if (e.dataTransfer.items && e.dataTransfer.items.length > 0) {
+      setLoadingUpload(true);
+      try {
+        const files = [];
+        const traverseEntry = (entry) => {
+          return new Promise((resolve) => {
+            if (entry.isFile) {
+              entry.file(
+                (file) => {
+                  files.push(file);
+                  resolve();
+                },
+                () => resolve()
+              );
+            } else if (entry.isDirectory) {
+              const dirReader = entry.createReader();
+              const readAllEntries = () => {
+                dirReader.readEntries(
+                  async (entries) => {
+                    if (entries.length === 0) {
+                      resolve();
+                    } else {
+                      for (const childEntry of entries) {
+                        await traverseEntry(childEntry);
+                      }
+                      readAllEntries();
+                    }
+                  },
+                  () => resolve()
+                );
+              };
+              readAllEntries();
+            } else {
+              resolve();
+            }
+          });
+        };
+
+        const traversePromises = [];
+        for (let i = 0; i < e.dataTransfer.items.length; i++) {
+          const item = e.dataTransfer.items[i];
+          if (item.kind === "file") {
+            const entry = item.webkitGetAsEntry();
+            if (entry) {
+              traversePromises.push(traverseEntry(entry));
+            }
+          }
+        }
+        await Promise.all(traversePromises);
+
+        if (files.length > 0) {
+          await processFiles(files);
+        } else {
+          setLoadingUpload(false);
+        }
+      } catch (err) {
+        console.error("Error traversing dropped items:", err);
+        setUploadError(language === "es" ? "Error al procesar los elementos arrastrados" : "Error processing dropped items");
+        setLoadingUpload(false);
+      }
+    } else if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
       processFiles(e.dataTransfer.files);
     }
   };

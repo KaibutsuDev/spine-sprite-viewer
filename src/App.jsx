@@ -12,7 +12,7 @@ export default function App() {
   const [isTransitioning, setIsTransitioning] = useState(false);
 
   // Viewer options
-  const [spineVersion, setSpineVersion] = useState('4.2');
+  const [spineVersion, setSpineVersion] = useState('3.6');
   const [premultipliedAlpha, setPremultipliedAlpha] = useState(true);
   const [gridActive, setGridActive] = useState(true);
 
@@ -163,13 +163,13 @@ export default function App() {
       setTimeout(() => {
         setActiveModelId(model.id);
         setActiveModel(model);
-        setSpineVersion(model.version || '4.2');
+        setSpineVersion(model.version || '3.6');
       }, 100);
     } else {
       setIsTransitioning(true);
       setActiveModelId(model.id);
       setActiveModel(model);
-      setSpineVersion(model.version || '4.2');
+      setSpineVersion(model.version || '3.6');
       
       // Clear previously loaded animations and skins
       setLoadedAnimations([]);
